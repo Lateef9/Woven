@@ -1,0 +1,14 @@
+{
+  "name": "bot",
+  "version": "1.0.0",
+  "description": "Node.js microservice for bot",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
