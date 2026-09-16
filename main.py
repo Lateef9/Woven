@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from database import db_manager
 from schemas import Message
+from llm_service import ask_llm
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,3 +25,8 @@ async def test_db():
 async def ingest_mock(message: Message):
     print(f"Received validated message: {message}")
     return {"status": "received"}
+
+@app.get("/test-llm")
+async def test_llm(query: str):
+    answer = await ask_llm(query)
+    return {"query": query, "answer": answer}
