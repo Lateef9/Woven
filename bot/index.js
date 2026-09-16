@@ -17,9 +17,29 @@ app.post('/webhook', (req, res) => {
 });
 
 // Mock thread endpoint
-app.get('/trigger-mock', (req, res) => {
-  const mockData = generateMockThread();
-  res.json(mockData);
+app.get('/trigger-mock', async (req, res) => {
+  try {
+    const mockData = generateMockThread();
+    
+    // Map each message to a fetch Promise
+    const requests = mockData.map(message => 
+      fetch('http://localhost:8000/ingest-mock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(message)
+      })
+    );
+
+    // Wait for all POST requests to finish
+    await Promise.all(requests);
+    
+    res.json({ status: 'success', messages_sent: mockData.length });
+  } catch (error) {
+    console.error('Error sending mock data to Python backend:', error.message);
+    res.status(500).json({ status: 'error', message: 'Failed to communicate with Python backend' });
+  }
 });
 
 app.get('/', (req, res) => {
