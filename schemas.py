@@ -17,3 +17,10 @@ class Message(BaseModel):
     timestamp: datetime
     author: User
     channel: Channel
+
+class AtomicFact(BaseModel):
+    fact_text: str
+    confidence_score: float
+
+class FactList(BaseModel):
+    facts: list[AtomicFact]
