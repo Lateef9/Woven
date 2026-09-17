@@ -54,10 +54,9 @@ async def extract_graph_data(message_text: str) -> GraphExtractionResult:
     system_prompt = (
         "You are a graph extraction bot. Identify key entities (Person, Project, Technology, Concept) "
         "and relationships from the text. Return a JSON object matching the GraphExtractionResult schema. "
-        "The GraphExtractionResult schema contains two keys: 'entities' (list of Entity) and 'relationships' (list of Relationship). "
-        "Each Entity has 'id' (slugified lowercase string), 'type' (string, e.g. Person, Project, Technology, Concept), and 'name' (string). "
-        "Each Relationship has 'source_entity_id' (string), 'target_entity_id' (string), and 'relation_type' (uppercase string, e.g. WORKS_ON, USES, MENTIONS). "
-        "Ensure relationship source and target IDs perfectly match the extracted entity IDs."
+        "Ensure relationship source and target IDs perfectly match the extracted entity IDs. "
+        "Entity fields: id (lowercase/slugified string), type (e.g. Person, Project, Technology, Concept), name (string). "
+        "Relationship fields: source_entity_id, target_entity_id, relation_type (uppercase, e.g. WORKS_ON, USES, MENTIONS)."
     )
 
     response = await litellm.acompletion(
