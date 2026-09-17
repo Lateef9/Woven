@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from database import db_manager
 from schemas import Message
 from llm_service import ask_llm, extract_facts
-from vector_store import save_facts_to_weaviate
+from vector_store import save_fact, search_facts
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,11 +32,15 @@ async def ingest_mock(message: Message):
     print(f"Extracted {len(facts)} facts:")
     for fact in facts:
         print(f" - [{fact.confidence_score}] {fact.fact_text}")
-        
-    # Save the extracted facts into Weaviate
-    await save_facts_to_weaviate(facts, message.message_id)
+        # Save each extracted fact to Weaviate
+        save_fact(fact.fact_text, message.message_id)
         
     return {"status": "received", "facts_extracted": len(facts)}
+
+@app.get("/search-facts")
+async def search_facts_endpoint(query: str):
+    results = search_facts(query)
+    return {"query": query, "results": results}
 
 @app.get("/test-llm")
 async def test_llm(query: str):

@@ -48,33 +48,46 @@ def init_weaviate_schema():
     finally:
         client.close()
 
-async def save_facts_to_weaviate(facts, source_message_id: str):
+def save_fact(fact_text: str, message_id: str):
     """
-    Takes a list of AtomicFact objects and saves them to the Weaviate database.
+    Inserts a new object into the 'Fact' collection in Weaviate.
     """
-    if not facts:
-        return
-        
     client = get_weaviate_client()
     try:
-        # Get the Fact collection
         fact_collection = client.collections.get("Fact")
-        
-        # Prepare the objects for batch insertion
-        objects_to_insert = [
-            {
-                "fact_text": fact.fact_text,
-                "source_message_id": source_message_id
-            }
-            for fact in facts
-        ]
-        
-        # Insert them into Weaviate
-        fact_collection.data.insert_many(objects_to_insert)
-        print(f"Successfully saved {len(objects_to_insert)} facts to Weaviate!")
-        
+        fact_collection.data.insert({
+            "fact_text": fact_text,
+            "source_message_id": message_id
+        })
+        print(f"Successfully saved fact to Weaviate: {fact_text}")
     except Exception as e:
         print(f"Error saving to Weaviate: {e}")
+    finally:
+        client.close()
+
+def search_facts(query: str, limit: int = 3):
+    """
+    Performs a semantic nearText search on the 'Fact' collection
+    and returns the closest facts.
+    """
+    client = get_weaviate_client()
+    try:
+        fact_collection = client.collections.get("Fact")
+        response = fact_collection.query.near_text(
+            query=query,
+            limit=limit
+        )
+        
+        results = []
+        for obj in response.objects:
+            results.append({
+                "fact_text": obj.properties.get("fact_text"),
+                "source_message_id": obj.properties.get("source_message_id")
+            })
+        return results
+    except Exception as e:
+        print(f"Error searching Weaviate: {e}")
+        return []
     finally:
         client.close()
 
