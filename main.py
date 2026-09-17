@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from database import db_manager
 from schemas import Message
-from llm_service import ask_llm, extract_facts
+from llm_service import ask_llm, extract_facts, extract_graph_data
 from vector_store import save_fact, search_facts
 
 @asynccontextmanager
@@ -35,7 +35,21 @@ async def ingest_mock(message: Message):
         # Save each extracted fact to Weaviate
         save_fact(fact.fact_text, message.message_id)
         
-    return {"status": "received", "facts_extracted": len(facts)}
+    # Extract graph data from the message text
+    graph_data = await extract_graph_data(message.text)
+    
+    print(f"Extracted {len(graph_data.entities)} entities and {len(graph_data.relationships)} relationships:")
+    for entity in graph_data.entities:
+        print(f" - Entity: {entity.name} ({entity.type}) [ID: {entity.id}]")
+    for rel in graph_data.relationships:
+        print(f" - Rel: {rel.source_entity_id} -[{rel.relation_type}]-> {rel.target_entity_id}")
+        
+    return {
+        "status": "received", 
+        "facts_extracted": len(facts),
+        "entities_extracted": len(graph_data.entities),
+        "relationships_extracted": len(graph_data.relationships)
+    }
 
 @app.get("/search-facts")
 async def search_facts_endpoint(query: str):

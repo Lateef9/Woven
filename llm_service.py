@@ -2,7 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 import litellm
-from schemas import AtomicFact, FactList
+from schemas import AtomicFact, FactList, GraphExtractionResult
 
 # Load environment variables from .env file
 load_dotenv()
@@ -46,3 +46,33 @@ async def extract_facts(message_text: str) -> list[AtomicFact]:
     except Exception as e:
         print(f"Error parsing facts: {e}")
         return []
+
+async def extract_graph_data(message_text: str) -> GraphExtractionResult:
+    """
+    Extracts entities and relationships from a chat message.
+    """
+    system_prompt = (
+        "You are a graph extraction bot. Identify key entities (Person, Project, Technology, Concept) "
+        "and relationships from the text. Return a JSON object matching the GraphExtractionResult schema. "
+        "The GraphExtractionResult schema contains two keys: 'entities' (list of Entity) and 'relationships' (list of Relationship). "
+        "Each Entity has 'id' (slugified lowercase string), 'type' (string, e.g. Person, Project, Technology, Concept), and 'name' (string). "
+        "Each Relationship has 'source_entity_id' (string), 'target_entity_id' (string), and 'relation_type' (uppercase string, e.g. WORKS_ON, USES, MENTIONS). "
+        "Ensure relationship source and target IDs perfectly match the extracted entity IDs."
+    )
+
+    response = await litellm.acompletion(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message_text}
+        ],
+        response_format={"type": "json_object"}
+    )
+    
+    response_content = response.choices[0].message.content
+    try:
+        data = json.loads(response_content)
+        return GraphExtractionResult(**data)
+    except Exception as e:
+        print(f"Error parsing graph data: {e}")
+        return GraphExtractionResult(entities=[], relationships=[])

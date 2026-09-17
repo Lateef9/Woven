@@ -24,3 +24,17 @@ class AtomicFact(BaseModel):
 
 class FactList(BaseModel):
     facts: list[AtomicFact]
+
+class Entity(BaseModel):
+    id: str
+    type: str
+    name: str
+
+class Relationship(BaseModel):
+    source_entity_id: str
+    target_entity_id: str
+    relation_type: str
+
+class GraphExtractionResult(BaseModel):
+    entities: list[Entity]
+    relationships: list[Relationship]
