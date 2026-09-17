@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from neo4j import AsyncGraphDatabase
+from schemas import GraphExtractionResult
 
 load_dotenv()
 
@@ -34,3 +35,59 @@ class Neo4jManager:
 
 
 neo4j_manager = Neo4jManager()
+
+
+async def save_graph_data(extraction_result: GraphExtractionResult) -> None:
+    """
+    Persists extracted entities and relationships into Neo4j using MERGE.
+    Errors are logged and do not raise, so callers can keep running.
+    """
+    if not neo4j_manager.driver:
+        print("Error saving graph data: Neo4j driver is not connected.")
+        return
+
+    if not extraction_result.entities and not extraction_result.relationships:
+        return
+
+    entities = [
+        {"id": e.id, "name": e.name, "type": e.type}
+        for e in extraction_result.entities
+    ]
+    relationships = [
+        {
+            "source_entity_id": r.source_entity_id,
+            "target_entity_id": r.target_entity_id,
+            "relation_type": r.relation_type,
+        }
+        for r in extraction_result.relationships
+    ]
+
+    try:
+        async with neo4j_manager.driver.session() as session:
+            if entities:
+                await session.run(
+                    """
+                    UNWIND $entities AS e
+                    MERGE (n:Entity {id: e.id})
+                    SET n.name = e.name, n.type = e.type
+                    """,
+                    entities=entities,
+                )
+
+            if relationships:
+                await session.run(
+                    """
+                    UNWIND $relationships AS r
+                    MATCH (src:Entity {id: r.source_entity_id}),
+                          (tgt:Entity {id: r.target_entity_id})
+                    MERGE (src)-[rel:RELATION {type: r.relation_type}]->(tgt)
+                    """,
+                    relationships=relationships,
+                )
+
+        print(
+            f"Successfully saved {len(entities)} entities and "
+            f"{len(relationships)} relationships to Neo4j."
+        )
+    except Exception as e:
+        print(f"Error saving graph data to Neo4j: {e}")

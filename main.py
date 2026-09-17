@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from database import db_manager
-from graph_store import neo4j_manager
+from graph_store import neo4j_manager, save_graph_data
 from schemas import Message
 from llm_service import ask_llm, extract_facts, extract_graph_data
 from vector_store import save_fact, search_facts
@@ -51,6 +51,9 @@ async def ingest_mock(message: Message):
         print(f" - Entity: {entity.name} ({entity.type}) [ID: {entity.id}]")
     for rel in graph_data.relationships:
         print(f" - Rel: {rel.source_entity_id} -[{rel.relation_type}]-> {rel.target_entity_id}")
+
+    # Persist graph extraction into Neo4j (errors are logged, not raised)
+    await save_graph_data(graph_data)
         
     return {
         "status": "received", 
