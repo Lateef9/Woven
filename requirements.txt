@@ -3,3 +3,4 @@ uvicorn
 motor
 litellm
 python-dotenv
+weaviate-client
