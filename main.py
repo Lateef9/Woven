@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from database import db_manager
+from graph_store import neo4j_manager
 from schemas import Message
 from llm_service import ask_llm, extract_facts, extract_graph_data
 from vector_store import save_fact, search_facts
@@ -8,7 +9,9 @@ from vector_store import save_fact, search_facts
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db_manager.connect()
+    neo4j_manager.connect()
     yield
+    await neo4j_manager.close()
     db_manager.close()
 
 app = FastAPI(lifespan=lifespan)
@@ -21,6 +24,11 @@ def health_check():
 async def test_db():
     result = await db_manager.channels.insert_one({"name": "test_channel", "platform": "slack"})
     return {"id": str(result.inserted_id)}
+
+@app.get("/test-neo4j")
+async def test_neo4j():
+    result = await neo4j_manager.verify_connectivity()
+    return {"status": "ok", "result": result}
 
 @app.post("/ingest-mock")
 async def ingest_mock(message: Message):
