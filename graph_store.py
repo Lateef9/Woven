@@ -37,6 +37,20 @@ class Neo4jManager:
 neo4j_manager = Neo4jManager()
 
 
+async def clear_graph_data() -> None:
+    """Deletes all Entity nodes and RELATION edges from Neo4j."""
+    if not neo4j_manager.driver:
+        print("Error clearing graph data: Neo4j driver is not connected.")
+        return
+
+    try:
+        async with neo4j_manager.driver.session() as session:
+            await session.run("MATCH (n:Entity) DETACH DELETE n")
+        print("Cleared all Entity nodes and relationships from Neo4j.")
+    except Exception as e:
+        print(f"Error clearing Neo4j graph data: {e}")
+
+
 async def save_graph_data(extraction_result: GraphExtractionResult) -> None:
     """
     Persists extracted entities and relationships into Neo4j using MERGE.

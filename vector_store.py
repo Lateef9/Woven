@@ -1,5 +1,6 @@
 import weaviate
 import weaviate.classes.config as wc
+from weaviate.classes.query import MetadataQuery
 import os
 from dotenv import load_dotenv
 
@@ -48,6 +49,31 @@ def init_weaviate_schema():
     finally:
         client.close()
 
+def clear_facts() -> None:
+    """Deletes all Fact objects by recreating an empty Fact collection."""
+    client = None
+    try:
+        client = get_weaviate_client()
+        if client.collections.exists("Fact"):
+            client.collections.delete("Fact")
+        client.collections.create(
+            name="Fact",
+            vectorizer_config=wc.Configure.Vectorizer.text2vec_openai(
+                model="text-embedding-3-small"
+            ),
+            properties=[
+                wc.Property(name="fact_text", data_type=wc.DataType.TEXT),
+                wc.Property(name="source_message_id", data_type=wc.DataType.TEXT),
+            ],
+        )
+        print("Cleared Weaviate: recreated empty Fact collection.")
+    except Exception as e:
+        print(f"Error clearing Weaviate facts: {e}")
+    finally:
+        if client is not None:
+            client.close()
+
+
 def save_fact(fact_text: str, message_id: str):
     """
     Inserts a new object into the 'Fact' collection in Weaviate.
@@ -70,26 +96,52 @@ def search_facts(query: str, limit: int = 3):
     Performs a semantic nearText search on the 'Fact' collection
     and returns the closest facts.
     """
-    client = get_weaviate_client()
+    return retrieve_facts(query=query, limit=limit)
+
+def retrieve_facts(query: str, limit: int = 5) -> list[dict]:
+    """
+    Semantic nearText retrieval against the Fact collection.
+    Returns fact_text, source_message_id, and a relevance score when available.
+    Empty results or errors return [] (never raises).
+    """
+    if not query or not query.strip():
+        return []
+
+    client = None
     try:
+        client = get_weaviate_client()
+        if not client.collections.exists("Fact"):
+            return []
+
         fact_collection = client.collections.get("Fact")
         response = fact_collection.query.near_text(
             query=query,
-            limit=limit
+            limit=limit,
+            return_metadata=MetadataQuery(distance=True, certainty=True),
         )
-        
+
         results = []
         for obj in response.objects:
+            score = None
+            if obj.metadata is not None:
+                if obj.metadata.certainty is not None:
+                    score = obj.metadata.certainty
+                elif obj.metadata.distance is not None:
+                    # Lower distance = closer; convert to a 0-1-ish relevance score
+                    score = max(0.0, 1.0 - float(obj.metadata.distance))
+
             results.append({
                 "fact_text": obj.properties.get("fact_text"),
-                "source_message_id": obj.properties.get("source_message_id")
+                "source_message_id": obj.properties.get("source_message_id"),
+                "score": score,
             })
         return results
     except Exception as e:
-        print(f"Error searching Weaviate: {e}")
+        print(f"Error retrieving facts from Weaviate: {e}")
         return []
     finally:
-        client.close()
+        if client is not None:
+            client.close()
 
 if __name__ == "__main__":
     # Test the initialization directly

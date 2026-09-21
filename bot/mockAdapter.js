@@ -2,10 +2,11 @@ import crypto from 'crypto';
 
 export function generateMockThread() {
   const channelId = crypto.randomUUID();
-  const channelName = "engineering-team";
-  
-  const userAlice = { user_id: crypto.randomUUID(), name: "Alice", platform: "mock" };
-  const userBob = { user_id: crypto.randomUUID(), name: "Bob", platform: "mock" };
+  const channelName = "weekend-plans";
+
+  const userMaya = { user_id: crypto.randomUUID(), name: "Maya", platform: "mock" };
+  const userJordan = { user_id: crypto.randomUUID(), name: "Jordan", platform: "mock" };
+  const userSam = { user_id: crypto.randomUUID(), name: "Sam", platform: "mock" };
 
   const channelInfo = { channel_id: channelId, name: channelName, platform: "mock" };
   const now = Date.now();
@@ -13,30 +14,37 @@ export function generateMockThread() {
   return [
     {
       message_id: crypto.randomUUID(),
-      text: "Hey team, the CI pipeline is failing on my PR. Anyone seeing the same issue?",
-      timestamp: new Date(now - 300000).toISOString(), // 5 mins ago
-      author: userAlice,
+      text: "Anyone free this Saturday? I was thinking we finally do that coastal trip to Goa.",
+      timestamp: new Date(now - 400000).toISOString(),
+      author: userMaya,
       channel: channelInfo
     },
     {
       message_id: crypto.randomUUID(),
-      text: "Yeah, looks like the database service isn't spinning up in the test environment.",
-      timestamp: new Date(now - 250000).toISOString(),
-      author: userBob,
+      text: "I'm in! Let's stay near Anjuna Beach. I found a place called Sea Breeze Homestay for about 2500 a night.",
+      timestamp: new Date(now - 300000).toISOString(),
+      author: userJordan,
       channel: channelInfo
     },
     {
       message_id: crypto.randomUUID(),
-      text: "Ah, I see. I just updated the Dockerfile. I'll push a fix shortly.",
+      text: "Perfect. I can book the IndiGo flight leaving Friday evening from Bangalore.",
+      timestamp: new Date(now - 200000).toISOString(),
+      author: userSam,
+      channel: channelInfo
+    },
+    {
+      message_id: crypto.randomUUID(),
+      text: "Also, dinner at Britto's on Saturday night? They do great seafood and live music.",
       timestamp: new Date(now - 100000).toISOString(),
-      author: userAlice,
+      author: userMaya,
       channel: channelInfo
     },
     {
       message_id: crypto.randomUUID(),
-      text: "Fix pushed. Here is the PR link: https://github.com/org/repo/pull/123",
+      text: "Done. Jordan handles the homestay, Sam books flights, Maya reserves Britto's. Can't wait!",
       timestamp: new Date(now).toISOString(),
-      author: userAlice,
+      author: userJordan,
       channel: channelInfo
     }
   ];

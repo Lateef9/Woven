@@ -19,6 +19,14 @@ app.post('/webhook', (req, res) => {
 // Mock thread endpoint
 app.get('/trigger-mock', async (req, res) => {
   try {
+    // Clear previous data in Weaviate / Neo4j / Mongo before ingesting the new thread
+    const clearResponse = await fetch('http://localhost:8000/clear-stores', {
+      method: 'POST'
+    });
+    if (!clearResponse.ok) {
+      throw new Error(`clear-stores failed with status ${clearResponse.status}`);
+    }
+
     const mockData = generateMockThread();
     
     // Map each message to a fetch Promise
@@ -35,7 +43,7 @@ app.get('/trigger-mock', async (req, res) => {
     // Wait for all POST requests to finish
     await Promise.all(requests);
     
-    res.json({ status: 'success', messages_sent: mockData.length });
+    res.json({ status: 'success', messages_sent: mockData.length, stores_cleared: true });
   } catch (error) {
     console.error('Error sending mock data to Python backend:', error.message);
     res.status(500).json({ status: 'error', message: 'Failed to communicate with Python backend' });
