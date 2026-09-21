@@ -2,7 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 import litellm
-from schemas import AtomicFact, FactList, GraphExtractionResult
+from schemas import AtomicFact, FactList, GraphExtractionResult, RouteDecision
 
 # Load environment variables from .env file
 load_dotenv()
@@ -110,3 +110,45 @@ async def extract_query_keywords(query: str) -> list[str]:
     except Exception as e:
         print(f"Error extracting query keywords: {e}")
         return []
+
+
+async def route_query(question: str) -> RouteDecision:
+    """
+    Decides whether a question should use semantic search, graph retrieval, or both.
+    """
+    if not question or not question.strip():
+        return RouteDecision(
+            route="both",
+            reason="Empty question; defaulting to both retrieval paths.",
+        )
+
+    system_prompt = (
+        "You are a query router for a dual-memory Q&A system with two stores: "
+        "(1) semantic vector facts and (2) a knowledge graph of entities/relationships. "
+        "Return a JSON object matching the RouteDecision schema with fields "
+        "'route' (one of: semantic, graph, both) and 'reason' (short string). "
+        "Routing rules: "
+        "Prefer 'graph' for who/whom, ownership, dependencies, 'works on', 'related to', "
+        "team/org structure, and connection questions. "
+        "Prefer 'semantic' for what/how/why explanations, definitions, decisions, "
+        "and summaries of discussions. "
+        "Prefer 'both' when the question needs facts AND relationships, or when unclear."
+    )
+
+    try:
+        response = await litellm.acompletion(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question},
+            ],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(response.choices[0].message.content)
+        return RouteDecision(**data)
+    except Exception as e:
+        print(f"Error routing query: {e}")
+        return RouteDecision(
+            route="both",
+            reason="Router failed; defaulting to both retrieval paths.",
+        )

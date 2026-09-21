@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Literal
 
 class User(BaseModel):
     user_id: str
@@ -38,3 +39,7 @@ class Relationship(BaseModel):
 class GraphExtractionResult(BaseModel):
     entities: list[Entity]
     relationships: list[Relationship]
+
+class RouteDecision(BaseModel):
+    route: Literal["semantic", "graph", "both"]
+    reason: str

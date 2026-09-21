@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from database import db_manager
 from graph_store import neo4j_manager, save_graph_data, clear_graph_data, retrieve_graph_context
 from schemas import Message
-from llm_service import ask_llm, extract_facts, extract_graph_data
+from llm_service import ask_llm, extract_facts, extract_graph_data, route_query
 from vector_store import save_fact, search_facts, retrieve_facts, clear_facts
 
 @asynccontextmanager
@@ -96,6 +96,11 @@ async def retrieve_semantic(query: str, limit: int = 5):
 async def retrieve_graph(query: str, limit: int = 10):
     results = await retrieve_graph_context(query=query, limit=limit)
     return {"query": query, "limit": limit, "results": results}
+
+@app.get("/route")
+async def route(query: str):
+    decision = await route_query(query)
+    return {"query": query, "route": decision.route, "reason": decision.reason}
 
 @app.get("/test-llm")
 async def test_llm(query: str):
