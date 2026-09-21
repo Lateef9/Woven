@@ -43,3 +43,6 @@ class GraphExtractionResult(BaseModel):
 class RouteDecision(BaseModel):
     route: Literal["semantic", "graph", "both"]
     reason: str
+
+class AskRequest(BaseModel):
+    question: str
