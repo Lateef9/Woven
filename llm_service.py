@@ -75,3 +75,38 @@ async def extract_graph_data(message_text: str) -> GraphExtractionResult:
     except Exception as e:
         print(f"Error parsing graph data: {e}")
         return GraphExtractionResult(entities=[], relationships=[])
+
+
+async def extract_query_keywords(query: str) -> list[str]:
+    """
+    Extracts 1–5 likely entity names/keywords from a user query for graph lookup.
+    Returns a plain list of strings; empty list on failure.
+    """
+    if not query or not query.strip():
+        return []
+
+    system_prompt = (
+        "Extract 1 to 5 likely entity names or keywords from the user question "
+        "that would help look up a knowledge graph. Prefer people, places, organizations, "
+        "products, and concrete nouns. Return a JSON object with a single key 'keywords' "
+        "whose value is an array of strings. Do not invent unrelated terms."
+    )
+
+    try:
+        response = await litellm.acompletion(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query},
+            ],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(response.choices[0].message.content)
+        keywords = data.get("keywords", [])
+        if not isinstance(keywords, list):
+            return []
+        cleaned = [str(k).strip() for k in keywords if str(k).strip()]
+        return cleaned[:5]
+    except Exception as e:
+        print(f"Error extracting query keywords: {e}")
+        return []

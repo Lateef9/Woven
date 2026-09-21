@@ -105,3 +105,74 @@ async def save_graph_data(extraction_result: GraphExtractionResult) -> None:
         )
     except Exception as e:
         print(f"Error saving graph data to Neo4j: {e}")
+
+
+async def retrieve_graph_context(query: str, limit: int = 10) -> list[dict]:
+    """
+    Retrieve neighboring graph triples relevant to a natural-language query.
+    Uses the LLM to extract keywords, then matches Entity nodes in Neo4j.
+    Returns [] on empty input or any failure (never raises to the caller).
+    """
+    if not query or not query.strip():
+        return []
+
+    if not neo4j_manager.driver:
+        print("Error retrieving graph context: Neo4j driver is not connected.")
+        return []
+
+    try:
+        from llm_service import extract_query_keywords
+
+        keywords = await extract_query_keywords(query)
+    except Exception as e:
+        print(f"Error retrieving graph keywords from LLM: {e}")
+        return []
+
+    if not keywords:
+        # Fallback: use the raw query as a single keyword
+        keywords = [query.strip()]
+
+    cypher = """
+        MATCH (n:Entity)-[r]-(m:Entity)
+        WHERE toLower(coalesce(n.name, '')) CONTAINS toLower($kw)
+           OR toLower(coalesce(n.id, '')) CONTAINS toLower($kw)
+        RETURN n.name AS source_name,
+               n.id AS source_id,
+               type(r) AS rel_label,
+               r.type AS rel_type,
+               m.name AS target_name,
+               m.id AS target_id
+        LIMIT $limit
+    """
+
+    results: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    try:
+        async with neo4j_manager.driver.session() as session:
+            for kw in keywords:
+                try:
+                    result = await session.run(cypher, kw=kw, limit=limit)
+                    async for record in result:
+                        source = record["source_name"] or record["source_id"] or ""
+                        target = record["target_name"] or record["target_id"] or ""
+                        relation = record["rel_type"] or record["rel_label"] or "RELATED"
+                        key = (source, relation, target)
+                        if not source or not target or key in seen:
+                            continue
+                        seen.add(key)
+                        results.append({
+                            "source": source,
+                            "relation": relation,
+                            "target": target,
+                        })
+                        if len(results) >= limit:
+                            return results
+                except Exception as cypher_error:
+                    print(f"Cypher error for keyword '{kw}': {cypher_error}")
+                    continue
+    except Exception as e:
+        print(f"Error retrieving graph context from Neo4j: {e}")
+        return []
+
+    return results
