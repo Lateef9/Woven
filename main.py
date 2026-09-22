@@ -40,21 +40,45 @@ async def clear_stores():
     mongo_deleted = 0
     try:
         if db_manager.channels is not None:
-            result = await db_manager.channels.delete_many({})
-            mongo_deleted = result.deleted_count
-            print(f"Cleared {mongo_deleted} documents from MongoDB channels.")
+            channels_result = await db_manager.channels.delete_many({})
+            mongo_deleted += channels_result.deleted_count
+        if db_manager.messages is not None:
+            messages_result = await db_manager.messages.delete_many({})
+            mongo_deleted += messages_result.deleted_count
+            print(f"Cleared MongoDB channels/messages ({mongo_deleted} docs).")
     except Exception as e:
         print(f"Error clearing MongoDB: {e}")
     return {
         "status": "cleared",
         "weaviate": "Fact collection reset",
         "neo4j": "Entity nodes deleted",
-        "mongodb_channels_deleted": mongo_deleted,
+        "mongodb_docs_deleted": mongo_deleted,
     }
 
 @app.post("/ingest-mock")
 async def ingest_mock(message: Message):
     print(f"Received validated message from {message.author.name}: {message.text}")
+
+    # Persist channel + message so Channels page (and fallbacks) have data
+    try:
+        await db_manager.channels.update_one(
+            {"channel_id": message.channel.channel_id},
+            {
+                "$set": {
+                    "channel_id": message.channel.channel_id,
+                    "name": message.channel.name,
+                    "platform": message.channel.platform,
+                }
+            },
+            upsert=True,
+        )
+        await db_manager.messages.update_one(
+            {"message_id": message.message_id},
+            {"$set": message.model_dump(mode="json")},
+            upsert=True,
+        )
+    except Exception as e:
+        print(f"Error persisting message/channel to MongoDB: {e}")
     
     # Extract facts from the message text
     facts = await extract_facts(message.text)
@@ -83,6 +107,53 @@ async def ingest_mock(message: Message):
         "entities_extracted": len(graph_data.entities),
         "relationships_extracted": len(graph_data.relationships)
     }
+
+@app.get("/api/channels")
+async def list_channels():
+    """Return known channels from MongoDB, or derive them from ingested messages."""
+    try:
+        docs = await db_manager.channels.find(
+            {},
+            {"_id": 0, "channel_id": 1, "name": 1, "platform": 1},
+        ).to_list(length=500)
+
+        channels = [
+            {
+                "channel_id": d.get("channel_id") or "",
+                "name": d.get("name") or "",
+                "platform": d.get("platform") or "mock",
+            }
+            for d in docs
+            if d.get("channel_id")
+        ]
+
+        if channels:
+            return channels
+
+        # Fallback: unique channels from ingested messages
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$channel.channel_id",
+                    "name": {"$first": "$channel.name"},
+                    "platform": {"$first": "$channel.platform"},
+                }
+            },
+            {"$match": {"_id": {"$ne": None}}},
+            {"$sort": {"name": 1}},
+        ]
+        derived = await db_manager.messages.aggregate(pipeline).to_list(length=500)
+        return [
+            {
+                "channel_id": d["_id"],
+                "name": d.get("name") or d["_id"],
+                "platform": d.get("platform") or "mock",
+            }
+            for d in derived
+        ]
+    except Exception as e:
+        print(f"Error listing channels: {e}")
+        return []
 
 @app.get("/search-facts")
 async def search_facts_endpoint(query: str):

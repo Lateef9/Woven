@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ChannelsPage from './pages/ChannelsPage'
 
 type Page = 'channels' | 'ask' | 'wiki'
 
@@ -7,17 +8,6 @@ const NAV: { id: Page; label: string }[] = [
   { id: 'ask', label: 'Ask' },
   { id: 'wiki', label: 'Wiki' },
 ]
-
-function ChannelsPage() {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-2xl font-semibold tracking-tight">Channels</h2>
-      <p className="max-w-2xl text-slate-600">
-        Browse and follow team conversations that feed Woven&apos;s memory.
-      </p>
-    </section>
-  )
-}
 
 function AskPage() {
   return (
