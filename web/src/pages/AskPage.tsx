@@ -1,18 +1,27 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
+import { askQuestion, askQuestionStream, type AskMeta } from '../lib/askApi'
 
 type ChatMessage = {
   id: string
   role: 'user' | 'assistant'
   content: string
+  meta?: AskMeta
 }
 
 function createId() {
   return crypto.randomUUID()
 }
 
+function formatMeta(meta: AskMeta): string {
+  const facts = meta.semantic_hits?.length ?? 0
+  const graph = meta.graph_hits?.length ?? 0
+  return `route=${meta.route}, facts=${facts}, graph=${graph}`
+}
+
 export default function AskPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -22,27 +31,83 @@ export default function AskPage() {
     }
   }, [messages])
 
-  function handleSend(event?: FormEvent) {
+  function updateAssistant(id: string, updater: (msg: ChatMessage) => ChatMessage) {
+    setMessages((prev) => prev.map((m) => (m.id === id ? updater(m) : m)))
+  }
+
+  async function handleSend(event?: FormEvent) {
     event?.preventDefault()
     const content = input.trim()
-    if (!content) return
+    if (!content || busy) return
 
+    const assistantId = createId()
     setMessages((prev) => [
       ...prev,
       { id: createId(), role: 'user', content },
-      { id: createId(), role: 'assistant', content: 'Thinking...' },
+      { id: assistantId, role: 'assistant', content: 'Thinking...' },
     ])
     setInput('')
+    setBusy(true)
+
+    let streamed = ''
+
+    try {
+      await askQuestionStream(
+        content,
+        (delta) => {
+          streamed += delta
+          const text = streamed
+          updateAssistant(assistantId, (msg) => ({
+            ...msg,
+            content: text,
+          }))
+        },
+        (meta) => {
+          updateAssistant(assistantId, (msg) => ({
+            ...msg,
+            content: streamed || msg.content,
+            meta,
+          }))
+        },
+      )
+
+      if (!streamed) {
+        // Stream finished with no text — try POST fallback
+        throw new Error('Empty stream')
+      }
+    } catch {
+      try {
+        const result = await askQuestion(content)
+        updateAssistant(assistantId, () => ({
+          id: assistantId,
+          role: 'assistant',
+          content: result.answer || 'Sorry, the backend failed.',
+          meta: {
+            route: result.route,
+            semantic_hits: result.semantic_hits,
+            graph_hits: result.graph_hits,
+          },
+        }))
+      } catch {
+        updateAssistant(assistantId, (msg) => ({
+          ...msg,
+          content: 'Sorry, the backend failed.',
+          meta: undefined,
+        }))
+      }
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const canSend = input.trim().length > 0
+  const canSend = input.trim().length > 0 && !busy
 
   return (
     <section className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       <div className="space-y-1">
         <h2 className="text-2xl font-semibold tracking-tight">Ask</h2>
         <p className="text-slate-600">
-          Chat with Woven&apos;s dual memory. Backend wiring comes next.
+          Chat with Woven&apos;s dual memory (semantic + graph).
         </p>
       </div>
 
@@ -66,6 +131,9 @@ export default function AskPage() {
                 >
                   {message.content}
                 </p>
+                {message.role === 'assistant' && message.meta && (
+                  <p className="text-xs text-slate-400">{formatMeta(message.meta)}</p>
+                )}
               </li>
             ))}
           </ul>
@@ -80,22 +148,23 @@ export default function AskPage() {
           id="ask-input"
           rows={2}
           value={input}
+          disabled={busy}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              handleSend()
+              void handleSend()
             }
           }}
           placeholder="Ask about your team knowledge…"
-          className="min-h-[2.75rem] flex-1 resize-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-slate-900"
+          className="min-h-[2.75rem] flex-1 resize-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-slate-900 disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={!canSend}
           className="shrink-0 px-3 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
         >
-          Send
+          {busy ? '…' : 'Send'}
         </button>
       </form>
     </section>
