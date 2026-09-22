@@ -143,6 +143,36 @@ def retrieve_facts(query: str, limit: int = 5) -> list[dict]:
         if client is not None:
             client.close()
 
+
+def list_recent_facts(limit: int = 50) -> list[dict]:
+    """
+    Return recent Fact objects from Weaviate (no semantic query).
+    Each item: fact_text, source_message_id.
+    """
+    client = None
+    try:
+        client = get_weaviate_client()
+        if not client.collections.exists("Fact"):
+            return []
+
+        fact_collection = client.collections.get("Fact")
+        response = fact_collection.query.fetch_objects(limit=max(1, min(limit, 200)))
+
+        return [
+            {
+                "fact_text": obj.properties.get("fact_text"),
+                "source_message_id": obj.properties.get("source_message_id"),
+            }
+            for obj in response.objects
+        ]
+    except Exception as e:
+        print(f"Error listing recent facts from Weaviate: {e}")
+        return []
+    finally:
+        if client is not None:
+            client.close()
+
+
 if __name__ == "__main__":
     # Test the initialization directly
     init_weaviate_schema()

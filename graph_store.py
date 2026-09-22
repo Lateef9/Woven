@@ -176,3 +176,43 @@ async def retrieve_graph_context(query: str, limit: int = 10) -> list[dict]:
         return []
 
     return results
+
+
+async def list_recent_graph_triples(limit: int = 50) -> list[dict]:
+    """
+    Return entity/relationship triples from Neo4j for the wiki page.
+    Shape: { source, relation, target }. Empty list on failure.
+    """
+    if not neo4j_manager.driver:
+        print("Error listing graph triples: Neo4j driver is not connected.")
+        return []
+
+    cypher = """
+        MATCH (a:Entity)-[r]->(b:Entity)
+        RETURN a.name AS source_name,
+               a.id AS source_id,
+               type(r) AS rel_label,
+               r.type AS rel_type,
+               b.name AS target_name,
+               b.id AS target_id
+        LIMIT $limit
+    """
+
+    try:
+        async with neo4j_manager.driver.session() as session:
+            result = await session.run(cypher, limit=max(1, min(limit, 200)))
+            triples: list[dict] = []
+            async for record in result:
+                source = record["source_name"] or record["source_id"] or ""
+                target = record["target_name"] or record["target_id"] or ""
+                relation = record["rel_type"] or record["rel_label"] or "RELATED"
+                if source and target:
+                    triples.append({
+                        "source": source,
+                        "relation": relation,
+                        "target": target,
+                    })
+            return triples
+    except Exception as e:
+        print(f"Error listing graph triples from Neo4j: {e}")
+        return []

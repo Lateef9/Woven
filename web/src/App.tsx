@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ChannelsPage from './pages/ChannelsPage'
 import AskPage from './pages/AskPage'
+import WikiPage from './pages/WikiPage'
 
 type Page = 'channels' | 'ask' | 'wiki'
 
@@ -9,17 +10,6 @@ const NAV: { id: Page; label: string }[] = [
   { id: 'ask', label: 'Ask' },
   { id: 'wiki', label: 'Wiki' },
 ]
-
-function WikiPage() {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-2xl font-semibold tracking-tight">Wiki</h2>
-      <p className="max-w-2xl text-slate-600">
-        Explore synthesized knowledge pages built from extracted facts and relationships.
-      </p>
-    </section>
-  )
-}
 
 function App() {
   const [page, setPage] = useState<Page>('ask')

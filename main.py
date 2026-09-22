@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from database import db_manager
-from graph_store import neo4j_manager, save_graph_data, clear_graph_data, retrieve_graph_context
+from graph_store import neo4j_manager, save_graph_data, clear_graph_data, retrieve_graph_context, list_recent_graph_triples
 from schemas import Message, AskRequest
 from llm_service import ask_llm, extract_facts, extract_graph_data, route_query
-from vector_store import save_fact, search_facts, retrieve_facts, clear_facts
+from vector_store import save_fact, search_facts, retrieve_facts, clear_facts, list_recent_facts
 from qa_service import answer_question, stream_answer
 
 @asynccontextmanager
@@ -203,6 +203,16 @@ async def ask_stream(question: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+@app.get("/api/wiki/facts")
+async def wiki_facts(limit: int = 50):
+    facts = list_recent_facts(limit=limit)
+    return {"limit": limit, "facts": facts}
+
+@app.get("/api/wiki/graph")
+async def wiki_graph(limit: int = 50):
+    triples = await list_recent_graph_triples(limit=limit)
+    return {"limit": limit, "triples": triples}
 
 @app.get("/test-llm")
 async def test_llm(query: str):
