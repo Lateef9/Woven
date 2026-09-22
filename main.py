@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from database import db_manager
 from graph_store import neo4j_manager, save_graph_data, clear_graph_data, retrieve_graph_context
 from schemas import Message, AskRequest
 from llm_service import ask_llm, extract_facts, extract_graph_data, route_query
 from vector_store import save_fact, search_facts, retrieve_facts, clear_facts
-from qa_service import answer_question
+from qa_service import answer_question, stream_answer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -110,6 +111,27 @@ async def ask_get(question: str):
 @app.post("/api/ask")
 async def ask_post(body: AskRequest):
     return await answer_question(body.question)
+
+@app.get("/api/ask/stream")
+async def ask_stream(question: str):
+    async def event_generator():
+        async for item in stream_answer(question):
+            event = item.get("event")
+            data = item.get("data", "")
+            if event:
+                yield f"event: {event}\ndata: {data}\n\n"
+            else:
+                yield f"data: {data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @app.get("/test-llm")
 async def test_llm(query: str):
