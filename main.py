@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from database import db_manager
 from graph_store import neo4j_manager, save_graph_data, clear_graph_data, retrieve_graph_context, list_recent_graph_triples
-from schemas import Message, AskRequest
+from schemas import Message, AskRequest, AtomicFact
 from llm_service import ask_llm, extract_facts, extract_graph_data, route_query
 from vector_store import save_fact, search_facts, retrieve_facts, clear_facts, list_recent_facts
 from qa_service import answer_question, stream_answer
@@ -82,7 +82,23 @@ async def ingest_mock(message: Message):
     
     # Extract facts from the message text
     facts = await extract_facts(message.text)
-    
+
+    # Pleasantries / thin messages often yield zero facts; keep a searchable fallback
+    # so Slack/live ingest still reaches semantic Ask.
+    used_fallback_fact = False
+    if not facts and message.text.strip():
+        used_fallback_fact = True
+        facts = [
+            AtomicFact(
+                fact_text=(
+                    f"{message.author.name} said in #{message.channel.name}: "
+                    f"{message.text.strip()}"
+                ),
+                confidence_score=0.5,
+            )
+        ]
+        print("No LLM facts extracted; storing raw message as fallback fact.")
+
     print(f"Extracted {len(facts)} facts:")
     for fact in facts:
         print(f" - [{fact.confidence_score}] {fact.fact_text}")
@@ -102,10 +118,11 @@ async def ingest_mock(message: Message):
     await save_graph_data(graph_data)
         
     return {
-        "status": "received", 
+        "status": "received",
         "facts_extracted": len(facts),
+        "used_fallback_fact": used_fallback_fact,
         "entities_extracted": len(graph_data.entities),
-        "relationships_extracted": len(graph_data.relationships)
+        "relationships_extracted": len(graph_data.relationships),
     }
 
 @app.get("/api/channels")
