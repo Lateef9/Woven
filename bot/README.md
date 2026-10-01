@@ -26,7 +26,7 @@ SLACK_APP_TOKEN=xapp-...
 # Optional
 BOT_MODE=slack
 PORT=3001
-INGEST_URL=http://localhost:8000/ingest-mock
+INGEST_URL=http://localhost:8000/api/ingest
 ```
 
 ## Run
@@ -106,6 +106,6 @@ Slack events are mapped to the Phase 1 schema:
 }
 ```
 
-Then POSTed to `http://localhost:8000/ingest-mock`.
+Then POSTed to `http://localhost:8000/api/ingest`.
 
 Bot messages, subtypes, and empty text are ignored.

@@ -1,4 +1,4 @@
-const INGEST_URL = process.env.INGEST_URL || 'http://localhost:8000/ingest-mock';
+const INGEST_URL = process.env.INGEST_URL || 'http://localhost:8000/api/ingest';
 
 /**
  * POST a Phase-1 Message schema object to the FastAPI ingest endpoint.
