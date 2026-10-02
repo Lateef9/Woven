@@ -165,6 +165,8 @@ async def retrieve_graph_context(query: str, limit: int = 10) -> list[dict]:
                             "source": source,
                             "relation": relation,
                             "target": target,
+                            "source_id": record["source_id"] or "",
+                            "target_id": record["target_id"] or "",
                         })
                         if len(results) >= limit:
                             return results

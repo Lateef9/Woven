@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { generateMockThread } from './mockAdapter.js';
-import { ingestMessage } from './ingest.js';
+import { ingestMessage, wovenAuthHeaders } from './ingest.js';
 import { hasSlackCredentials, startSlackBot } from './slackAdapter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,6 +38,7 @@ app.get('/trigger-mock', async (req, res) => {
   try {
     const clearResponse = await fetch('http://localhost:8000/clear-stores', {
       method: 'POST',
+      headers: wovenAuthHeaders(),
     });
     if (!clearResponse.ok) {
       throw new Error(`clear-stores failed with status ${clearResponse.status}`);

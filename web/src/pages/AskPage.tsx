@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { askQuestion, askQuestionStream, type AskMeta } from '../lib/askApi'
+import { askQuestion, askQuestionStream, type AskMeta, type Citation } from '../lib/askApi'
 
 type ChatMessage = {
   id: string
@@ -16,6 +16,44 @@ function formatMeta(meta: AskMeta): string {
   const facts = meta.semantic_hits?.length ?? 0
   const graph = meta.graph_hits?.length ?? 0
   return `route=${meta.route}, facts=${facts}, graph=${graph}`
+}
+
+function CitationsList({ citations }: { citations: Citation[] }) {
+  if (!citations.length) return null
+
+  return (
+    <div className="mt-1 space-y-0.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        Citations
+      </p>
+      <ul className="space-y-0.5">
+        {citations.map((c) => (
+          <li key={c.index} className="text-xs leading-snug text-slate-500">
+            <span className="font-medium text-slate-600">[{c.index}]</span>{' '}
+            <span className="text-slate-400">{c.type}</span>
+            {' — '}
+            <span>{c.text}</span>
+            {c.source_message_id && (
+              <>
+                {' '}
+                <span className="text-slate-400">
+                  (
+                  <a
+                    href={`#msg-${c.source_message_id}`}
+                    className="underline decoration-slate-300 underline-offset-2 hover:text-slate-600"
+                    title={c.source_message_id}
+                  >
+                    {c.source_message_id}
+                  </a>
+                  )
+                </span>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 export default function AskPage() {
@@ -86,6 +124,7 @@ export default function AskPage() {
             route: result.route,
             semantic_hits: result.semantic_hits,
             graph_hits: result.graph_hits,
+            citations: result.citations ?? [],
           },
         }))
       } catch {
@@ -132,7 +171,10 @@ export default function AskPage() {
                   {message.content}
                 </p>
                 {message.role === 'assistant' && message.meta && (
-                  <p className="text-xs text-slate-400">{formatMeta(message.meta)}</p>
+                  <>
+                    <p className="text-xs text-slate-400">{formatMeta(message.meta)}</p>
+                    <CitationsList citations={message.meta.citations ?? []} />
+                  </>
                 )}
               </li>
             ))}

@@ -1,9 +1,17 @@
 export type AskRoute = 'semantic' | 'graph' | 'both'
 
+export type Citation = {
+  index: number
+  type: 'fact' | 'graph'
+  text: string
+  source_message_id?: string
+}
+
 export type AskMeta = {
   route: AskRoute
   semantic_hits: unknown[]
   graph_hits: unknown[]
+  citations: Citation[]
 }
 
 export type AskResponse = {
@@ -11,6 +19,7 @@ export type AskResponse = {
   route: AskRoute
   semantic_hits: unknown[]
   graph_hits: unknown[]
+  citations: Citation[]
 }
 
 export async function askQuestion(question: string): Promise<AskResponse> {
@@ -71,9 +80,12 @@ export async function askQuestionStream(
     if (eventName === 'done') {
       try {
         const meta = JSON.parse(data) as AskMeta
+        if (!Array.isArray(meta.citations)) {
+          meta.citations = []
+        }
         onDone?.(meta)
       } catch {
-        onDone?.({ route: 'both', semantic_hits: [], graph_hits: [] })
+        onDone?.({ route: 'both', semantic_hits: [], graph_hits: [], citations: [] })
       }
     } else if (eventName === 'error') {
       throw new Error(data || 'Stream error')
