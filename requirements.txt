@@ -5,3 +5,5 @@ litellm
 python-dotenv
 weaviate-client
 neo4j
+apscheduler
+httpx
