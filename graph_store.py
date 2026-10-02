@@ -218,3 +218,95 @@ async def list_recent_graph_triples(limit: int = 50) -> list[dict]:
     except Exception as e:
         print(f"Error listing graph triples from Neo4j: {e}")
         return []
+
+
+async def list_person_entities(limit: int = 100) -> list[dict]:
+    """
+    Return Entity nodes with type Person.
+    Shape: { id, name, type }. Empty list on failure.
+    """
+    if not neo4j_manager.driver:
+        print("Error listing person entities: Neo4j driver is not connected.")
+        return []
+
+    cypher = """
+        MATCH (n:Entity)
+        WHERE toLower(coalesce(n.type, '')) = 'person'
+        RETURN n.id AS id, n.name AS name, n.type AS type
+        LIMIT $limit
+    """
+
+    try:
+        async with neo4j_manager.driver.session() as session:
+            result = await session.run(cypher, limit=max(1, min(limit, 200)))
+            people: list[dict] = []
+            async for record in result:
+                name = record["name"] or record["id"] or ""
+                if not name:
+                    continue
+                people.append({
+                    "id": record["id"] or "",
+                    "name": name,
+                    "type": record["type"] or "Person",
+                })
+            return people
+    except Exception as e:
+        print(f"Error listing person entities from Neo4j: {e}")
+        return []
+
+
+async def list_triples_for_names(names: list[str], limit: int = 50) -> list[dict]:
+    """
+    Return triples where source or target name/id matches any of names (case-insensitive).
+    Shape: { source, relation, target }.
+    """
+    cleaned = [n.strip() for n in (names or []) if n and n.strip()]
+    if not cleaned:
+        return []
+
+    if not neo4j_manager.driver:
+        print("Error listing triples for names: Neo4j driver is not connected.")
+        return []
+
+    lowered = [n.lower() for n in cleaned]
+    cypher = """
+        MATCH (a:Entity)-[r]->(b:Entity)
+        WHERE toLower(coalesce(a.name, '')) IN $names
+           OR toLower(coalesce(a.id, '')) IN $names
+           OR toLower(coalesce(b.name, '')) IN $names
+           OR toLower(coalesce(b.id, '')) IN $names
+        RETURN a.name AS source_name,
+               a.id AS source_id,
+               type(r) AS rel_label,
+               r.type AS rel_type,
+               b.name AS target_name,
+               b.id AS target_id
+        LIMIT $limit
+    """
+
+    try:
+        async with neo4j_manager.driver.session() as session:
+            result = await session.run(
+                cypher,
+                names=lowered,
+                limit=max(1, min(limit, 200)),
+            )
+            triples: list[dict] = []
+            seen: set[tuple[str, str, str]] = set()
+            async for record in result:
+                source = record["source_name"] or record["source_id"] or ""
+                target = record["target_name"] or record["target_id"] or ""
+                relation = record["rel_type"] or record["rel_label"] or "RELATED"
+                key = (source, relation, target)
+                if not source or not target or key in seen:
+                    continue
+                seen.add(key)
+                triples.append({
+                    "source": source,
+                    "relation": relation,
+                    "target": target,
+                })
+            return triples
+    except Exception as e:
+        print(f"Error listing triples for names from Neo4j: {e}")
+        return []

@@ -5,6 +5,7 @@ class DatabaseManager:
     db = None
     channels = None
     messages = None
+    wiki_pages = None
 
     @classmethod
     def connect(cls):
@@ -12,6 +13,7 @@ class DatabaseManager:
         cls.db = cls.client.atlas_db
         cls.channels = cls.db.channels
         cls.messages = cls.db.messages
+        cls.wiki_pages = cls.db.wiki_pages
 
     @classmethod
     def close(cls):

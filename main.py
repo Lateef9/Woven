@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from database import db_manager
 from graph_store import neo4j_manager, save_graph_data, clear_graph_data, retrieve_graph_context, list_recent_graph_triples
@@ -7,6 +7,7 @@ from schemas import Message, AskRequest, AtomicFact
 from llm_service import ask_llm, extract_facts, extract_graph_data, route_query
 from vector_store import save_fact, search_facts, retrieve_facts, clear_facts, list_recent_facts
 from qa_service import answer_question, stream_answer
+from wiki_service import list_wiki_channels, get_wiki_channel_page
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,7 +46,10 @@ async def clear_stores():
         if db_manager.messages is not None:
             messages_result = await db_manager.messages.delete_many({})
             mongo_deleted += messages_result.deleted_count
-            print(f"Cleared MongoDB channels/messages ({mongo_deleted} docs).")
+        if db_manager.wiki_pages is not None:
+            wiki_result = await db_manager.wiki_pages.delete_many({})
+            mongo_deleted += wiki_result.deleted_count
+        print(f"Cleared MongoDB channels/messages/wiki_pages ({mongo_deleted} docs).")
     except Exception as e:
         print(f"Error clearing MongoDB: {e}")
     return {
@@ -232,6 +236,20 @@ async def ask_stream(question: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+@app.get("/api/wiki/channels")
+async def wiki_channels():
+    channels = await list_wiki_channels()
+    return {"channels": channels}
+
+
+@app.get("/api/wiki/channels/{channel_id}")
+async def wiki_channel_detail(channel_id: str):
+    page = await get_wiki_channel_page(channel_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail="Channel wiki not found")
+    return page
+
 
 @app.get("/api/wiki/facts")
 async def wiki_facts(limit: int = 50):

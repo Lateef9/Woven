@@ -1,6 +1,6 @@
 import weaviate
 import weaviate.classes.config as wc
-from weaviate.classes.query import MetadataQuery
+from weaviate.classes.query import Filter, MetadataQuery
 import os
 from dotenv import load_dotenv
 
@@ -167,6 +167,54 @@ def list_recent_facts(limit: int = 50) -> list[dict]:
         ]
     except Exception as e:
         print(f"Error listing recent facts from Weaviate: {e}")
+        return []
+    finally:
+        if client is not None:
+            client.close()
+
+
+def list_facts_by_message_ids(message_ids: list[str], limit: int = 100) -> list[dict]:
+    """
+    Return Fact objects whose source_message_id is in message_ids.
+    Empty list on empty input or failure.
+    """
+    ids = [mid for mid in (message_ids or []) if mid]
+    if not ids:
+        return []
+
+    client = None
+    try:
+        client = get_weaviate_client()
+        if not client.collections.exists("Fact"):
+            return []
+
+        fact_collection = client.collections.get("Fact")
+        # Weaviate contains_any has practical limits; chunk if needed
+        results: list[dict] = []
+        seen: set[str] = set()
+        chunk_size = 50
+        for i in range(0, len(ids), chunk_size):
+            chunk = ids[i : i + chunk_size]
+            response = fact_collection.query.fetch_objects(
+                filters=Filter.by_property("source_message_id").contains_any(chunk),
+                limit=max(1, min(limit, 200)),
+            )
+            for obj in response.objects:
+                fact_text = obj.properties.get("fact_text") or ""
+                source_id = obj.properties.get("source_message_id") or ""
+                key = f"{source_id}::{fact_text}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                results.append({
+                    "fact_text": fact_text,
+                    "source_message_id": source_id,
+                })
+                if len(results) >= limit:
+                    return results
+        return results
+    except Exception as e:
+        print(f"Error listing facts by message ids from Weaviate: {e}")
         return []
     finally:
         if client is not None:
